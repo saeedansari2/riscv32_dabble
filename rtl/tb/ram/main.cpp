@@ -83,6 +83,7 @@ void run_sim()
         //top->rd_en = 1;
     });
     eval();
+    ut_assert(top->data_out == 0xabcdef);
     pending_ops.push([](){
         top->wr_en = 0;
         //top->rd_en = 0;
@@ -95,6 +96,7 @@ void run_sim()
         //top->rd_en = 1;
     });
     eval();
+    ut_assert(top->data_out == 0x1234567);
     pending_ops.push([](){
         top->wr_en = 0;
         //top->rd_en = 0;
@@ -118,7 +120,7 @@ int main(int argc, const char **argv)
         delete tfp;
         delete top;
         delete ctx;
-    
+        printf("Simulation Successfull!\n");
     } catch (system_error &err) {
         fprintf(stderr, "%s\n", err.what());
         tfp->close();
