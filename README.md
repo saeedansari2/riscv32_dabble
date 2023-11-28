@@ -2,9 +2,9 @@
 Playing with RV32
 
 ## Dependencies
-1. sudo apt install verilator
-2. sudo apt install build-essential
-3. sudo apt install git
-4. sudo apt install clang (note: clang version >= 10)
-5. sudo apt install gtkwave
-6. sudo apt install lld
+1. sudo apt install build-essential
+2. sudo apt install git
+3. sudo apt install clang (note: clang version >= 10)
+4. sudo apt install gtkwave
+5. sudo apt install lld
+6. install verilator from source: https://verilator.org/guide/ltest/install.html
