@@ -2,7 +2,7 @@ CXX_FLAGS = -O3
 ARCH_FLAGS = --target=riscv32-none-eabi -march=rv32i 
 # ARCH_FLAGS = --with-arch=rv32i 
 
-all: build/test.hex
+all: build/test.dhex
 
 build/.keeper:
 	mkdir  -p build
@@ -27,5 +27,12 @@ build/test.hex: build/test.elf
 objdump: build/test.elf
 	llvm-objdump -DS build/test.elf
 
+asm: build/test.asm
+
+build/test.dhex: build/test.hex
+	./hexdump.py -i build/test.hex -o build/test.dhex
+
 clean:
 	rm -rf build/
+
+.PHONY: clean all asm
