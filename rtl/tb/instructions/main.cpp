@@ -123,12 +123,15 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define J_TYPE_RD(rd) (((rd) & 0x1f) << 7)
 
 #define OPCODE_LUI      0b0110111
+#define OPCODE_AUIPC    0b0010111
+#define OPCODE_JAL      0b1101111
 #define OPCODE_ARITH    0b0110011
 #define OPCODE_LOAD     0b0000011
 #define OPCODE_STORE    0b0100011
-#define OPCODE_JAL      0b1101111
 
 #define OP_LUI(imm, rd) (U_TYPE_IMM(imm) | U_TYPE_RD(rd) | OPCODE_LUI)
+#define OP_AUIPC(imm, rd) (U_TYPE_IMM(imm) | U_TYPE_RD(rd) | OPCODE_AUIPC)
+#define OP_JAL(imm, rd) (J_TYPE_IMM(imm) | J_TYPE_RD(rd) | OPCODE_JAL)
 #define OP_ADD(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
     R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
 #define OP_LW(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
@@ -147,7 +150,6 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
     S_TYPE_RS1(rs1) | S_TYPE_FN3(0b001) | OPCODE_STORE)
 #define OP_SB(imm, rs2, rs1) (S_TYPE_IMM(imm) | S_TYPE_RS2(rs2) | \
     S_TYPE_RS1(rs1) | S_TYPE_FN3(0b000) | OPCODE_STORE)
-#define OP_JAL(imm, rd) (J_TYPE_IMM(imm) | J_TYPE_RD(rd) | OPCODE_JAL)
 
 static void grab_regs(struct registers &regs_val)
 {
@@ -561,12 +563,39 @@ static void test_jal() {
     fprintf(stderr, FG_GREEN "jal tests passed!\n" FG_RESET);
 }
 
+static void test_auipc() {
+    struct registers regs;
+    uint32_t pc;
+    uint32_t offset;
+
+    run_reset();
+    grab_regs(regs);
+
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 12;
+    run_op(OP_AUIPC(offset, 1));
+    regs.r1 = pc + offset;
+    ut_assert(check_regs(regs));
+    ut_assert(top->rootp->rv32_core__DOT__pc == pc + 4);
+
+    // Test offset too small to encode
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_AUIPC(offset, 1));
+    regs.r1 = pc;
+    ut_assert(check_regs(regs));
+    ut_assert(top->rootp->rv32_core__DOT__pc == pc + 4);
+}
+
 static void run_sim() {
     test_lui();
+    test_auipc();
+    test_jal();
     test_add();
     test_load();
     test_store();
-    test_jal();
 }
 
 int main(int argc, const char **argv) {

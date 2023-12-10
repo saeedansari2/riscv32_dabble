@@ -17,10 +17,11 @@ module rv32_core
 
     typedef enum logic [6:0] {
         op_lui           = 7'b0110111,
+        op_auipc         = 7'b0010111,
+        op_jal           = 7'b1101111,
         op_load          = 7'b0000011,
         op_arith         = 7'b0110011,
-        op_store         = 7'b0100011,
-        op_jal           = 7'b1101111
+        op_store         = 7'b0100011
     } opcode_val;
 
     opcode_val opcode;
@@ -104,6 +105,15 @@ module rv32_core
                     begin
                         regs[rd] <= imm_u;
                     end
+                op_auipc:
+                    begin
+                        regs[rd] <= pc + imm_u;
+                    end
+                op_jal:
+                    begin
+                       regs[rd] <= pc + 4;
+                       pc <= pc + imm_j; // TODO: verify if this should take a + 4 byte offset 
+                    end
                 op_arith:
                     begin
                         if (func3==3'b000 && func7==7'b0000000) begin // add instaruction
@@ -112,11 +122,6 @@ module rv32_core
                             pc         <= pc;
                             core_fault <= fault_decode_err;
                         end
-                    end
-                op_jal:
-                    begin
-                       regs[rd] <= pc + 4;
-                       pc <= pc + imm_j; // TODO: verify if this should take a + 4 byte offset 
                     end
                 op_load:
                     begin
