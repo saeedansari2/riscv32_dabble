@@ -111,6 +111,16 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define S_TYPE_RS1(r) (((r) & 0x1f) << 15)
 #define S_TYPE_FN3(fn) (((fn) & 0x7) << 12)
 
+#define B_TYPE_IMM(imm) ( \
+    (BITS(imm, 20, 20) << 31) | \
+    (BITS(imm, 10, 5) << 25) | \
+    (BITS(imm, 4, 1) << 8) | \
+    (BITS(imm, 11, 11) << 7) \
+)
+#define B_TYPE_RS2(r) (((r) & 0x1f) << 20)
+#define B_TYPE_RS1(r) (((r) & 0x1f) << 15)
+#define B_TYPE_FN3(fn) (((fn) & 7) << 12)
+
 #define U_TYPE_IMM(imm) ((imm) & 0xfffff000)
 #define U_TYPE_RD(rd) (((rd) & 0x1f) << 7)
 
@@ -126,6 +136,7 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OPCODE_AUIPC    0b0010111
 #define OPCODE_JAL      0b1101111
 #define OPCODE_JALR     0b1100111
+#define OPCODE_B_X      0b1100011
 #define OPCODE_ARITH    0b0110011
 #define OPCODE_LOAD     0b0000011
 #define OPCODE_STORE    0b0100011
@@ -135,6 +146,18 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OP_JAL(imm, rd) (J_TYPE_IMM(imm) | J_TYPE_RD(rd) | OPCODE_JAL)
 #define OP_JALR(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
     I_TYPE_FN3(0b000) | I_TYPE_RD(rd) | OPCODE_JALR)
+#define OP_BEQ(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
+    B_TYPE_RS1(rs1) | B_TYPE_FN3(0b000) | OPCODE_B_X)
+#define OP_BNE(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
+    B_TYPE_RS1(rs1) | B_TYPE_FN3(0b001) | OPCODE_B_X)
+#define OP_BLT(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
+    B_TYPE_RS1(rs1) | B_TYPE_FN3(0b100) | OPCODE_B_X)
+#define OP_BGE(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
+    B_TYPE_RS1(rs1) | B_TYPE_FN3(0b101) | OPCODE_B_X)
+#define OP_BLTU(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
+    B_TYPE_RS1(rs1) | B_TYPE_FN3(0b110) | OPCODE_B_X)
+#define OP_BGEU(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
+    B_TYPE_RS1(rs1) | B_TYPE_FN3(0b111) | OPCODE_B_X)
 #define OP_ADD(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
     R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
 #define OP_LW(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
@@ -590,6 +613,8 @@ static void test_auipc() {
     regs.r1 = pc;
     ut_assert(check_regs(regs));
     ut_assert(top->rootp->rv32_core__DOT__pc == pc + 4);
+
+    fprintf(stderr, FG_GREEN "auipc tests passed!\n" FG_RESET);
 }
 
 static void test_jalr() {
@@ -619,6 +644,217 @@ static void test_jalr() {
     regs.r2 = pc + 4;
     ut_assert(check_regs(regs));
     ut_assert(top->rootp->rv32_core__DOT__pc == regs.r1 + offset);
+
+    fprintf(stderr, FG_GREEN "jalr tests passed!\n" FG_RESET);
+}
+
+static void test_bxx() {
+    struct registers regs;
+    uint32_t offset;
+    uint32_t pc;
+
+    run_reset();
+    grab_regs(regs);
+
+    // BEQ
+    regs.r1 = 0x100;
+    regs.r2 = 0x100;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BEQ(offset, 1, 2));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 0x100;
+    regs.r2 = 0x200;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BEQ(offset, 1, 2));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    // BNE
+    regs.r1 = 0x100;
+    regs.r2 = 0x200;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BNE(offset, 1, 2));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 0x100;
+    regs.r2 = 0x100;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BNE(offset, 1, 2));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    // BLT
+    regs.r1 = 1;
+    regs.r2 = 2;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLT(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = -1;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLT(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 1;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLT(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 1;
+    regs.r2 = -1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLT(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 2;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLT(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    // BGE
+    regs.r1 = 1;
+    regs.r2 = 2;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGE(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = -1;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGE(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 1;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGE(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 1;
+    regs.r2 = -1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGE(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 2;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGE(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    // BLTU
+    regs.r1 = 1;
+    regs.r2 = 2;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLTU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 0xffffffff;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLTU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 1;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLTU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 1;
+    regs.r2 = 0xffffffff;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLTU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 2;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BLTU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    // BGEU
+    regs.r1 = 1;
+    regs.r2 = 2;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGEU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 0xffffffff;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGEU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 1;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGEU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    regs.r1 = 1;
+    regs.r2 = 0xffffffff;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGEU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == 4 + pc);
+
+    regs.r1 = 2;
+    regs.r2 = 1;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_BGEU(offset, 2, 1));
+    ut_assert(top->rootp->rv32_core__DOT__pc == offset + pc);
+
+    fprintf(stderr, FG_GREEN "bxx tests passed!\n" FG_RESET);
 }
 
 static void run_sim() {
@@ -626,6 +862,7 @@ static void run_sim() {
     test_auipc();
     test_jal();
     test_jalr();
+    test_bxx();
     test_add();
     test_load();
     test_store();

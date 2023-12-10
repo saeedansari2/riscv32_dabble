@@ -20,6 +20,7 @@ module rv32_core
         op_auipc         = 7'b0010111,
         op_jal           = 7'b1101111,
         op_jalr          = 7'b1100111,
+        op_b_x           = 7'b1100011,
         op_load          = 7'b0000011,
         op_arith         = 7'b0110011,
         op_store         = 7'b0100011
@@ -33,7 +34,7 @@ module rv32_core
     wire [6:0] func7;
     wire [31:0] imm_i;
     wire [31:0] imm_s;
-    // wire [31:0] imm_b;
+    wire [31:0] imm_b;
     wire [31:0] imm_u;
     wire [31:0] imm_j;
 
@@ -53,7 +54,7 @@ module rv32_core
     assign  func7 = instruction[31:25];
     assign  imm_i = {{21{instruction[31]}}, instruction[30:20]};
     assign  imm_s = {{21{instruction[31]}}, instruction[30:25], instruction[11:7]};
-    // assign  imm_b = {{20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
+    assign  imm_b = {{20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
     assign  imm_u = {instruction[31:12], {12{1'b0}}};
     assign  imm_j = {{12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:21], 1'b0};
 
@@ -119,6 +120,52 @@ module rv32_core
                     begin
                        regs[rd] <= pc + 4;
                        pc <= rs1_data + imm_i;
+                    end
+                op_b_x:
+                    begin
+                        case (func3)
+                            default:
+                                begin
+                                    pc         <= pc;
+                                    core_fault <= fault_decode_err;
+                                end
+                            3'b000:
+                                begin
+                                    if (rs1_data == rs2_data) begin
+                                        pc <= pc + imm_b;
+                                    end
+                                end
+                            3'b001:
+                                begin
+                                    if (rs1_data != rs2_data) begin
+                                        pc <= pc + imm_b;
+                                    end
+                                end
+                            3'b100:
+                                begin
+                                    if ($signed(rs1_data) < $signed(rs2_data)) begin
+                                        pc <= pc + imm_b;
+                                    end
+                                end
+                            3'b101:
+                                begin
+                                    if ($signed(rs1_data) >= $signed(rs2_data)) begin
+                                        pc <= pc + imm_b;
+                                    end
+                                end
+                            3'b110:
+                                begin
+                                    if ($unsigned(rs1_data) < $unsigned(rs2_data)) begin
+                                        pc <= pc + imm_b;
+                                    end
+                                end
+                            3'b111:
+                                begin
+                                    if ($unsigned(rs1_data) >= $unsigned(rs2_data)) begin
+                                        pc <= pc + imm_b;
+                                    end
+                                end
+                        endcase
                     end
                 op_arith:
                     begin
