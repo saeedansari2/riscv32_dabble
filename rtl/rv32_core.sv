@@ -23,7 +23,10 @@ module rv32_core
         op_b_x           = 7'b1100011,
         op_load          = 7'b0000011,
         op_arith         = 7'b0110011,
-        op_store         = 7'b0100011
+        op_arith_i       = 7'b0010011,
+        op_store         = 7'b0100011,
+        op_fence         = 7'b0001111,
+        op_esys_csr      = 7'b1110011
     } opcode_val;
 
     opcode_val opcode;
@@ -81,6 +84,17 @@ module rv32_core
     assign rs1_data = (rs1 == 0) ? 32'd0 : regs[rs1];
     assign rs2_data = (rs2 == 0) ? 32'd0 : regs[rs2];
 
+    typedef enum logic [2:0] {
+        arith_add   = 3'b000,
+        arith_sll   = 3'b001,
+        arith_slt   = 3'b010,
+        arith_sltu  = 3'b011,
+        arith_xor   = 3'b100,
+        arith_sr    = 3'b101,
+        arith_or    = 3'b110,
+        arith_and   = 3'b111
+    } arith_val;
+
     always_ff @(posedge(clk)) begin
         if (!reset_n) begin
             pc              <= START_ADDR;
@@ -98,209 +112,364 @@ module rv32_core
             prev_inst <= instruction;
             ram_wr_en <= 1'b0;
             case (opcode)
-                default:
-                    begin
-                        pc         <= pc;
-                        core_fault <= fault_decode_err;
-                    end
-                op_lui: // load upper immidiate
-                    begin
-                        regs[rd] <= imm_u;
-                    end
-                op_auipc:
-                    begin
-                        regs[rd] <= pc + imm_u;
-                    end
-                op_jal:
-                    begin
-                       regs[rd] <= pc + 4;
-                       pc       <= pc + imm_j;
-                    end
-                op_jalr:
-                    begin
-                       regs[rd] <= pc + 4;
-                       pc       <= rs1_data + imm_i;
-                    end
-                op_b_x:
-                    begin
-                        case (func3)
-                            default:
-                                begin
-                                    pc         <= pc;
-                                    core_fault <= fault_decode_err;
+                default: begin
+                    pc         <= pc;
+                    core_fault <= fault_decode_err;
+                end
+                op_lui: begin // load upper immidiate
+                    regs[rd] <= imm_u;
+                end
+                op_auipc: begin
+                    regs[rd] <= pc + imm_u;
+                end
+                op_jal: begin
+                    regs[rd] <= pc + 4;
+                    pc       <= pc + imm_j;
+                end
+                op_jalr: begin
+                    regs[rd] <= pc + 4;
+                    pc       <= rs1_data + imm_i;
+                end
+                op_b_x: begin
+                    case (func3)
+                        default:
+                            begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        3'b000:
+                            begin
+                                if (rs1_data == rs2_data) begin
+                                    pc <= pc + imm_b;
                                 end
-                            3'b000:
-                                begin
-                                    if (rs1_data == rs2_data) begin
-                                        pc <= pc + imm_b;
-                                    end
+                            end
+                        3'b001:
+                            begin
+                                if (rs1_data != rs2_data) begin
+                                    pc <= pc + imm_b;
                                 end
-                            3'b001:
-                                begin
-                                    if (rs1_data != rs2_data) begin
-                                        pc <= pc + imm_b;
-                                    end
+                            end
+                        3'b100:
+                            begin
+                                if ($signed(rs1_data) < $signed(rs2_data)) begin
+                                    pc <= pc + imm_b;
                                 end
-                            3'b100:
-                                begin
-                                    if ($signed(rs1_data) < $signed(rs2_data)) begin
-                                        pc <= pc + imm_b;
-                                    end
+                            end
+                        3'b101:
+                            begin
+                                if ($signed(rs1_data) >= $signed(rs2_data)) begin
+                                    pc <= pc + imm_b;
                                 end
-                            3'b101:
-                                begin
-                                    if ($signed(rs1_data) >= $signed(rs2_data)) begin
-                                        pc <= pc + imm_b;
-                                    end
+                            end
+                        3'b110:
+                            begin
+                                if ($unsigned(rs1_data) < $unsigned(rs2_data)) begin
+                                    pc <= pc + imm_b;
                                 end
-                            3'b110:
-                                begin
-                                    if ($unsigned(rs1_data) < $unsigned(rs2_data)) begin
-                                        pc <= pc + imm_b;
-                                    end
+                            end
+                        3'b111:
+                            begin
+                                if ($unsigned(rs1_data) >= $unsigned(rs2_data)) begin
+                                    pc <= pc + imm_b;
                                 end
-                            3'b111:
-                                begin
-                                    if ($unsigned(rs1_data) >= $unsigned(rs2_data)) begin
-                                        pc <= pc + imm_b;
-                                    end
-                                end
-                        endcase
-                    end
-                op_arith:
-                    begin
-                        if (func3==3'b000 && func7==7'b0000000) begin // add instaruction
-                            regs[rd]   <= rs1_data + rs2_data;
-                        end else begin
+                            end
+                    endcase
+                end
+                op_arith_i: begin
+                    case (func3)
+                        default: begin
                             pc         <= pc;
                             core_fault <= fault_decode_err;
                         end
-                    end
-                op_load:
-                    begin
-                        if (!core_hault) begin
-                            if (func3 == 3'b010 || func3 == 3'b001 ||
-                                  func3 == 3'b000 || func3 == 3'b101 ||
-                                  func3 == 3'b100) begin
-                                core_hault      <= 1'b1;
-                                load_store_addr <= rs1_data + imm_i;
+                        arith_add: begin
+                            regs[rd]   <= rs1_data + imm_i;
+                        end
+                        arith_slt: begin
+                            if ($signed(rs1_data) < $signed(imm_i)) begin
+                                regs[rd]   <= 32'd1;
                             end else begin
-                                pc              <= pc;
-                                core_fault      <= fault_decode_err;
+                                regs[rd]   <= 32'd0;
                             end
-                        end else begin
-                            core_hault  <= 1'b0;
-                            case (func3)
-                                default: begin
-                                    pc         <= pc;
-                                    core_fault <= fault_decode_err;
-                                end
-                                3'b010: begin
-                                    regs[rd]   <= ram_data_out;
-                                end
-                                3'b001: begin
-                                    if (load_store_addr[1]) begin
-                                        regs[rd] <= {{16{ram_data_out[31]}}, ram_data_out[31:16]};
-                                    end else begin
-                                        regs[rd] <= {{16{ram_data_out[15]}}, ram_data_out[15:0]};
-                                    end
-                                end
-                                3'b000: begin
-                                    case (load_store_addr[1:0])
-                                        2'b00: begin
-                                            regs[rd] <= {{24{ram_data_out[7]}}, ram_data_out[7:0]};
-                                        end
-                                        2'b01: begin
-                                            regs[rd] <= {{24{ram_data_out[15]}}, ram_data_out[15:8]};
-                                        end
-                                        2'b10: begin
-                                            regs[rd] <= {{24{ram_data_out[23]}}, ram_data_out[23:16]};
-                                        end
-                                        2'b11: begin
-                                            regs[rd] <= {{24{ram_data_out[31]}}, ram_data_out[31:24]};
-                                        end
-                                    endcase
-                                end
-                                3'b101: begin
-                                    if (load_store_addr[1]) begin
-                                        regs[rd] <= {16'd0, ram_data_out[31:16]};
-                                    end else begin
-                                        regs[rd] <= {16'd0, ram_data_out[15:0]};
-                                    end
-                                end
-                                3'b100: begin
-                                    case (load_store_addr[1:0])
-                                        2'b00: begin
-                                            regs[rd] <= {24'd0, ram_data_out[7:0]};
-                                        end
-                                        2'b01: begin
-                                            regs[rd] <= {24'd0, ram_data_out[15:8]};
-                                        end
-                                        2'b10: begin
-                                            regs[rd] <= {24'd0, ram_data_out[23:16]};
-                                        end
-                                        2'b11: begin
-                                            regs[rd] <= {24'd0, ram_data_out[31:24]};
-                                        end
-                                    endcase
-                                end
-                            endcase
                         end
-                    end
-                op_store:
-                    begin
-                        if (!core_hault) begin
+                        arith_sltu: begin
+                            if ($unsigned(rs1_data) < $unsigned(imm_i)) begin
+                                regs[rd]   <= 32'd1;
+                            end else begin
+                                regs[rd]   <= 32'd0;
+                            end
+                        end
+                        arith_xor: begin
+                            regs[rd]   <= rs1_data ^ imm_i;
+                        end
+                        arith_or: begin
+                            regs[rd]   <= rs1_data | imm_i;
+                        end
+                        arith_and: begin
+                            regs[rd]   <= rs1_data & imm_i;
+                        end
+                        arith_sll: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data << imm_i[4:0];
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_sr: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data >> imm_i[4:0];
+                            end else if (func7==7'b0100000) begin
+                                regs[rd]   <= $signed(rs1_data) >>> imm_i[4:0];
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                    endcase
+                end
+                op_arith: begin
+                    case (func3)
+                        default: begin
+                            pc         <= pc;
+                            core_fault <= fault_decode_err;
+                        end
+                        arith_add: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data + rs2_data;
+                            end else if (func7==7'b0100000) begin
+                                regs[rd]   <= rs1_data - rs2_data;
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_sll: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data << rs2_data[4:0];
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_slt: begin
+                            if (func7==7'b0000000) begin
+                                if ($signed(rs1_data) < $signed(rs2_data)) begin
+                                    regs[rd]   <= 32'd1;
+                                end else begin
+                                    regs[rd]   <= 32'd0;
+                                end
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_sltu: begin
+                            if (func7==7'b0000000) begin
+                                if ($unsigned(rs1_data) < $unsigned(rs2_data)) begin
+                                    regs[rd]   <= 32'd1;
+                                end else begin
+                                    regs[rd]   <= 32'd0;
+                                end
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_xor: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data ^ rs2_data;
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_sr: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data >> rs2_data[4:0];
+                            end else if (func7==7'b0100000) begin
+                                regs[rd]   <= $signed(rs1_data) >>> rs2_data[4:0];
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_or: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data | rs2_data;
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        arith_and: begin
+                            if (func7==7'b0000000) begin
+                                regs[rd]   <= rs1_data & rs2_data;
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                    endcase
+                end
+                op_fence: begin
+                    // this is a NOP until we have muti-core or caching
+                end
+                op_esys_csr: begin
+                    case (func3)
+                        default: begin
+                            pc         <= pc;
+                            core_fault <= fault_decode_err;
+                        end
+                        3'b000: begin
+                            if (rs1 == 5'b00000 && rd==5'b00000 && func7 == '0 && rs2 == '0) begin 
+                                // ecall
+                            end else if (rs1 == 5'b00000 && rd==5'b00000 && func7 == '0 && rs2 == 5'b00001) begin
+                                // ebreak
+                            end else begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                        end
+                        // TODO: complete the csr instructions
+                        3'b001: begin
+                        end
+                        3'b010: begin
+                        end
+                        3'b011: begin
+                        end
+                        3'b100: begin
+                        end
+                        3'b101: begin
+                        end
+                        3'b110: begin
+                        end
+                        3'b111: begin
+                        end
+                    endcase
+                end
+                op_load: begin
+                    if (!core_hault) begin
+                        if (func3 == 3'b010 || func3 == 3'b001 ||
+                                func3 == 3'b000 || func3 == 3'b101 ||
+                                func3 == 3'b100) begin
                             core_hault      <= 1'b1;
-                            load_store_addr <= store_addr_comb;
-                            ram_wr_en       <= 1'b1;
-                            case (func3)
-                                3'b010: begin
-                                    ram_wr_strobe <= 4'b1111;
-                                    ram_data_in   <= rs2_data;
-                                end
-                                3'b001: begin
-                                    case (store_addr_comb[1])
-                                        0: begin
-                                            ram_wr_strobe <= 4'b0011;
-                                            ram_data_in   <= rs2_data;
-                                        end
-                                        1: begin
-                                            ram_wr_strobe      <= 4'b1100;
-                                            ram_data_in[31:16] <= rs2_data[15:0];
-                                        end
-                                    endcase
-                                end
-                                3'b000: begin
-                                    case (store_addr_comb[1:0])
-                                        2'b00: begin
-                                            ram_wr_strobe <= 4'b0001;
-                                            ram_data_in   <= rs2_data;
-                                        end
-                                        2'b01: begin
-                                            ram_wr_strobe     <= 4'b0010;
-                                            ram_data_in[15:8] <= rs2_data[7:0];
-                                        end
-                                        2'b10: begin
-                                            ram_wr_strobe      <= 4'b0100;
-                                            ram_data_in[23:16] <= rs2_data[7:0];
-                                        end
-                                        2'b11: begin
-                                            ram_wr_strobe      <= 4'b1000;
-                                            ram_data_in[31:24] <= rs2_data[7:0];
-                                        end
-                                    endcase
-                                end
-                                default: begin
-                                    pc         <= pc;
-                                    core_fault <= fault_decode_err;
-                                    core_hault <= 1'b0;
-                                    ram_wr_en  <= 1'b0;
-                                end
-                            endcase
+                            load_store_addr <= rs1_data + imm_i;
                         end else begin
-                            core_hault  <= 1'b0;
+                            pc              <= pc;
+                            core_fault      <= fault_decode_err;
                         end
+                    end else begin
+                        core_hault  <= 1'b0;
+                        case (func3)
+                            default: begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                            end
+                            3'b010: begin
+                                regs[rd]   <= ram_data_out;
+                            end
+                            3'b001: begin
+                                if (load_store_addr[1]) begin
+                                    regs[rd] <= {{16{ram_data_out[31]}}, ram_data_out[31:16]};
+                                end else begin
+                                    regs[rd] <= {{16{ram_data_out[15]}}, ram_data_out[15:0]};
+                                end
+                            end
+                            3'b000: begin
+                                case (load_store_addr[1:0])
+                                    2'b00: begin
+                                        regs[rd] <= {{24{ram_data_out[7]}}, ram_data_out[7:0]};
+                                    end
+                                    2'b01: begin
+                                        regs[rd] <= {{24{ram_data_out[15]}}, ram_data_out[15:8]};
+                                    end
+                                    2'b10: begin
+                                        regs[rd] <= {{24{ram_data_out[23]}}, ram_data_out[23:16]};
+                                    end
+                                    2'b11: begin
+                                        regs[rd] <= {{24{ram_data_out[31]}}, ram_data_out[31:24]};
+                                    end
+                                endcase
+                            end
+                            3'b101: begin
+                                if (load_store_addr[1]) begin
+                                    regs[rd] <= {16'd0, ram_data_out[31:16]};
+                                end else begin
+                                    regs[rd] <= {16'd0, ram_data_out[15:0]};
+                                end
+                            end
+                            3'b100: begin
+                                case (load_store_addr[1:0])
+                                    2'b00: begin
+                                        regs[rd] <= {24'd0, ram_data_out[7:0]};
+                                    end
+                                    2'b01: begin
+                                        regs[rd] <= {24'd0, ram_data_out[15:8]};
+                                    end
+                                    2'b10: begin
+                                        regs[rd] <= {24'd0, ram_data_out[23:16]};
+                                    end
+                                    2'b11: begin
+                                        regs[rd] <= {24'd0, ram_data_out[31:24]};
+                                    end
+                                endcase
+                            end
+                        endcase
                     end
+                end
+                op_store: begin
+                    if (!core_hault) begin
+                        core_hault      <= 1'b1;
+                        load_store_addr <= store_addr_comb;
+                        ram_wr_en       <= 1'b1;
+                        case (func3)
+                            3'b010: begin
+                                ram_wr_strobe <= 4'b1111;
+                                ram_data_in   <= rs2_data;
+                            end
+                            3'b001: begin
+                                case (store_addr_comb[1])
+                                    0: begin
+                                        ram_wr_strobe <= 4'b0011;
+                                        ram_data_in   <= rs2_data;
+                                    end
+                                    1: begin
+                                        ram_wr_strobe      <= 4'b1100;
+                                        ram_data_in[31:16] <= rs2_data[15:0];
+                                    end
+                                endcase
+                            end
+                            3'b000: begin
+                                case (store_addr_comb[1:0])
+                                    2'b00: begin
+                                        ram_wr_strobe <= 4'b0001;
+                                        ram_data_in   <= rs2_data;
+                                    end
+                                    2'b01: begin
+                                        ram_wr_strobe     <= 4'b0010;
+                                        ram_data_in[15:8] <= rs2_data[7:0];
+                                    end
+                                    2'b10: begin
+                                        ram_wr_strobe      <= 4'b0100;
+                                        ram_data_in[23:16] <= rs2_data[7:0];
+                                    end
+                                    2'b11: begin
+                                        ram_wr_strobe      <= 4'b1000;
+                                        ram_data_in[31:24] <= rs2_data[7:0];
+                                    end
+                                endcase
+                            end
+                            default: begin
+                                pc         <= pc;
+                                core_fault <= fault_decode_err;
+                                core_hault <= 1'b0;
+                                ram_wr_en  <= 1'b0;
+                            end
+                        endcase
+                    end else begin
+                        core_hault  <= 1'b0;
+                    end
+                end
             endcase
         end
     end

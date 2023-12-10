@@ -138,6 +138,7 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OPCODE_JALR     0b1100111
 #define OPCODE_B_X      0b1100011
 #define OPCODE_ARITH    0b0110011
+#define OPCODE_ARITH_I  0b0010011
 #define OPCODE_LOAD     0b0000011
 #define OPCODE_STORE    0b0100011
 
@@ -158,8 +159,6 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
     B_TYPE_RS1(rs1) | B_TYPE_FN3(0b110) | OPCODE_B_X)
 #define OP_BGEU(imm, rs2, rs1) (B_TYPE_IMM(imm) | B_TYPE_RS2(rs2) | \
     B_TYPE_RS1(rs1) | B_TYPE_FN3(0b111) | OPCODE_B_X)
-#define OP_ADD(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
-    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
 #define OP_LW(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
     I_TYPE_FN3(0b010) | I_TYPE_RD(rd) | OPCODE_LOAD)
 #define OP_LH(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
@@ -176,6 +175,44 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
     S_TYPE_RS1(rs1) | S_TYPE_FN3(0b001) | OPCODE_STORE)
 #define OP_SB(imm, rs2, rs1) (S_TYPE_IMM(imm) | S_TYPE_RS2(rs2) | \
     S_TYPE_RS1(rs1) | S_TYPE_FN3(0b000) | OPCODE_STORE)
+#define OP_ADD(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_SUB(rs2, rs1, rd) (R_TYPE_FN7(0b0100000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_SLL(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b001) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_SLT(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b010) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_SLTU(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b011) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_XOR(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b100) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_SRL(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b101) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_SRA(rs2, rs1, rd) (R_TYPE_FN7(0b0100000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b101) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_OR(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b110) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_AND(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b111) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_ADDI(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b000) | I_TYPE_RD(rd) | OPCODE_ARITH_I)
+#define OP_SLTI(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b010) | I_TYPE_RD(rd) | OPCODE_ARITH_I)
+#define OP_SLTIU(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b011) | I_TYPE_RD(rd) | OPCODE_ARITH_I)
+#define OP_XORI(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b100) | I_TYPE_RD(rd) | OPCODE_ARITH_I)
+#define OP_ORI(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b110) | I_TYPE_RD(rd) | OPCODE_ARITH_I)
+#define OP_ANDI(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b111) | I_TYPE_RD(rd) | OPCODE_ARITH_I)
+#define OP_SLLI(imm, rs1, rd) (I_TYPE_IMM((imm) & 0x1f) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b001) | I_TYPE_RD(rd) | OPCODE_ARITH_I | R_TYPE_FN7(0b0000000))
+#define OP_SRLI(imm, rs1, rd) (I_TYPE_IMM((imm) & 0x1f) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b101) | I_TYPE_RD(rd) | OPCODE_ARITH_I | R_TYPE_FN7(0b0000000))
+#define OP_SRAI(imm, rs1, rd) (I_TYPE_IMM((imm) & 0x1f) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b101) | I_TYPE_RD(rd) | OPCODE_ARITH_I | R_TYPE_FN7(0b0100000))
 
 static void grab_regs(struct registers &regs_val)
 {
@@ -325,7 +362,7 @@ static void test_lui() {
     fprintf(stderr, FG_GREEN "lui tests passed!\n" FG_RESET);
 }
 
-static void test_add() {
+static void test_arith() {
     struct registers regs;
 
     run_reset();
@@ -353,6 +390,290 @@ static void test_add() {
     ut_assert(check_regs(regs));
 
     fprintf(stderr, FG_GREEN "add tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x70000000;
+    regs.r9 = 0x80000000;
+    set_regs(regs);
+    run_op(OP_SUB(7, 9, 4));
+    regs.r4 = 0x10000000;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sub tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x00000003;
+    regs.r9 = 0x00000001;
+    set_regs(regs);
+    run_op(OP_SLL(7, 9, 4));
+    regs.r4 = 0x00000008;
+    ut_assert(check_regs(regs)); 
+
+    regs.r7 = 0x00000023;
+    regs.r9 = 0x00000001;
+    set_regs(regs);
+    run_op(OP_SLL(7, 9, 4));
+    regs.r4 = 0x00000008;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sll tests passed!\n" FG_RESET);
+
+    regs.r7 = 3;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLT(7, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 9;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLT(7, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = -1;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLT(7, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 5;
+    regs.r9 = -5;
+    set_regs(regs);
+    run_op(OP_SLT(7, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 6;
+    regs.r9 = 6;
+    set_regs(regs);
+    run_op(OP_SLT(7, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "slt tests passed!\n" FG_RESET);
+
+    regs.r7 = 3;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTU(7, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 9;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTU(7, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 0xffffffff;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTU(7, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 5;
+    regs.r9 = 0xfffffffb;
+    set_regs(regs);
+    run_op(OP_SLTU(7, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r7 = 6;
+    regs.r9 = 6;
+    set_regs(regs);
+    run_op(OP_SLTU(7, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sltu tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80000000;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SRL(9, 7, 4));
+    regs.r4 = 0x04000000;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "srl tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80000000;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SRA(9, 7, 4));
+    regs.r4 = 0xfc000000;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sra tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80aa0000;
+    regs.r9 = 0x00aa0008;
+    set_regs(regs);
+    run_op(OP_XOR(9, 7, 4));
+    regs.r4 = 0x80000008;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "xor tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80aa0000;
+    regs.r9 = 0x00aa0008;
+    set_regs(regs);
+    run_op(OP_OR(9, 7, 4));
+    regs.r4 = 0x80aa0008;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "or tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80aa0000;
+    regs.r9 = 0x00aa0008;
+    set_regs(regs);
+    run_op(OP_AND(9, 7, 4));
+    regs.r4 = 0x00aa0000;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "and tests passed!\n" FG_RESET);
+}
+
+static void test_arith_i() {
+    struct registers regs;
+
+    run_reset();
+    grab_regs(regs);
+
+    regs.r1 = 0x70000000;
+    set_regs(regs);
+    run_op(OP_ADDI(0x12, 1, 2));
+    regs.r2 = 0x70000012;
+    ut_assert(check_regs(regs));
+
+    regs.r1 = 0x70000018;
+    set_regs(regs);
+    run_op(OP_ADDI(-22, 1, 2));
+    regs.r2 = 0x70000002;
+    ut_assert(check_regs(regs));
+
+    fprintf(stderr, FG_GREEN "add_i tests passed!\n" FG_RESET);
+
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTI(3, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTI(9, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTI(-1, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = -5;
+    set_regs(regs);
+    run_op(OP_SLTI(5, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 6;
+    set_regs(regs);
+    run_op(OP_SLTI(6, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "slt_i tests passed!\n" FG_RESET);
+
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTIU(3, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTIU(9, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SLTIU(0xffffffff, 9, 4));
+    regs.r4 = 1;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 0xfffffffb;
+    set_regs(regs);
+    run_op(OP_SLTIU(5, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 6;
+    set_regs(regs);
+    run_op(OP_SLTIU(6, 9, 4));
+    regs.r4 = 0;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sltu_i tests passed!\n" FG_RESET);
+
+    regs.r9 = 0x08a;
+    set_regs(regs);
+    run_op(OP_XORI(0x70a, 9, 4));
+    regs.r4 = 0x780;
+    ut_assert(check_regs(regs));
+
+    regs.r9 = 0x08a;
+    set_regs(regs);
+    run_op(OP_XORI(0x80a, 9, 4));
+    regs.r4 = 0xfffff880;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "xor_i tests passed!\n" FG_RESET);
+
+    regs.r9 = 0x08a;
+    set_regs(regs);
+    run_op(OP_ORI(0x80a, 9, 4));
+    regs.r4 = 0xfffff88a;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "or_i tests passed!\n" FG_RESET);
+
+    regs.r9 = 0x08a;
+    set_regs(regs);
+    run_op(OP_ANDI(0x80a, 9, 4));
+    regs.r4 = 0x00a;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "and_i tests passed!\n" FG_RESET);
+
+    regs.r9 = 1;
+    set_regs(regs);
+    run_op(OP_SLLI(3, 9, 4));
+    regs.r4 = 8;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sll_i tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80000000;
+    set_regs(regs);
+    run_op(OP_SRLI(5, 7, 4));
+    regs.r4 = 0x04000000;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "srl_i tests passed!\n" FG_RESET);
+
+    regs.r7 = 0x80000000;
+    regs.r9 = 5;
+    set_regs(regs);
+    run_op(OP_SRAI(5, 7, 4));
+    regs.r4 = 0xfc000000;
+    ut_assert(check_regs(regs)); 
+
+    fprintf(stderr, FG_GREEN "sra_i tests passed!\n" FG_RESET);
 }
 
 static void test_load() {
@@ -863,7 +1184,8 @@ static void run_sim() {
     test_jal();
     test_jalr();
     test_bxx();
-    test_add();
+    test_arith();
+    test_arith_i();
     test_load();
     test_store();
 }
