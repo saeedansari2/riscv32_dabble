@@ -64,7 +64,7 @@ module rv32_core
     // verilator lint_off UNUSEDSIGNAL
     reg [31:0]  load_store_addr;
     // verilator lint_on UNUSEDSIGNAL
-    assign ram_addr     = core_hault ? load_store_addr[ADDR_WIDTH-1+2:2] : pc[ADDR_WIDTH-1+2:2];
+    assign ram_addr    = core_hault ? load_store_addr[ADDR_WIDTH-1+2:2] : pc[ADDR_WIDTH-1+2:2];
     assign instruction = core_hault ? prev_inst : ram_data_out;
 
 
@@ -114,12 +114,12 @@ module rv32_core
                 op_jal:
                     begin
                        regs[rd] <= pc + 4;
-                       pc <= pc + imm_j;
+                       pc       <= pc + imm_j;
                     end
                 op_jalr:
                     begin
                        regs[rd] <= pc + 4;
-                       pc <= rs1_data + imm_i;
+                       pc       <= rs1_data + imm_i;
                     end
                 op_b_x:
                     begin
@@ -170,7 +170,7 @@ module rv32_core
                 op_arith:
                     begin
                         if (func3==3'b000 && func7==7'b0000000) begin // add instaruction
-                            regs[rd] <= rs1_data + rs2_data;
+                            regs[rd]   <= rs1_data + rs2_data;
                         end else begin
                             pc         <= pc;
                             core_fault <= fault_decode_err;
@@ -185,8 +185,8 @@ module rv32_core
                                 core_hault      <= 1'b1;
                                 load_store_addr <= rs1_data + imm_i;
                             end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
+                                pc              <= pc;
+                                core_fault      <= fault_decode_err;
                             end
                         end else begin
                             core_hault  <= 1'b0;
@@ -196,7 +196,7 @@ module rv32_core
                                     core_fault <= fault_decode_err;
                                 end
                                 3'b010: begin
-                                    regs[rd] <= ram_data_out;
+                                    regs[rd]   <= ram_data_out;
                                 end
                                 3'b001: begin
                                     if (load_store_addr[1]) begin
@@ -256,16 +256,16 @@ module rv32_core
                             case (func3)
                                 3'b010: begin
                                     ram_wr_strobe <= 4'b1111;
-                                    ram_data_in     <= rs2_data;
+                                    ram_data_in   <= rs2_data;
                                 end
                                 3'b001: begin
                                     case (store_addr_comb[1])
                                         0: begin
                                             ram_wr_strobe <= 4'b0011;
-                                            ram_data_in     <= rs2_data;
+                                            ram_data_in   <= rs2_data;
                                         end
                                         1: begin
-                                            ram_wr_strobe <= 4'b1100;
+                                            ram_wr_strobe      <= 4'b1100;
                                             ram_data_in[31:16] <= rs2_data[15:0];
                                         end
                                     endcase
@@ -277,15 +277,15 @@ module rv32_core
                                             ram_data_in   <= rs2_data;
                                         end
                                         2'b01: begin
-                                            ram_wr_strobe <= 4'b0010;
+                                            ram_wr_strobe     <= 4'b0010;
                                             ram_data_in[15:8] <= rs2_data[7:0];
                                         end
                                         2'b10: begin
-                                            ram_wr_strobe <= 4'b0100;
+                                            ram_wr_strobe      <= 4'b0100;
                                             ram_data_in[23:16] <= rs2_data[7:0];
                                         end
                                         2'b11: begin
-                                            ram_wr_strobe <= 4'b1000;
+                                            ram_wr_strobe      <= 4'b1000;
                                             ram_data_in[31:24] <= rs2_data[7:0];
                                         end
                                     endcase
@@ -293,8 +293,8 @@ module rv32_core
                                 default: begin
                                     pc         <= pc;
                                     core_fault <= fault_decode_err;
-                                    core_hault      <= 1'b0;
-                                    ram_wr_en <= 1'b0;
+                                    core_hault <= 1'b0;
+                                    ram_wr_en  <= 1'b0;
                                 end
                             endcase
                         end else begin
