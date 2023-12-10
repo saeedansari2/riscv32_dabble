@@ -39,13 +39,6 @@ module rv32_core
 
     assign opcode = opcode_val'(instruction[6 : 0]);
 
-    typedef enum logic [6:0] {
-        op_lui           = 7'b0110111,
-        op_load          = 7'b0000011,
-        op_arith         = 7'b0110011,
-        op_store         = 7'b0100011,
-        op_jal           = 7'b1101111
-    } opcode_val;
     assign     rd = instruction[11: 7];
     assign  func3 = instruction[14:12];
     assign    rs1 = instruction[19:15];
