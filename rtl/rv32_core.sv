@@ -35,9 +35,14 @@ module rv32_core
     wire [31:0] imm_u;
     wire [31:0] imm_j;
 
+    wire [31:0] store_addr_comb;
+
+
     wire [31:0] instruction;
 
     assign opcode = opcode_val'(instruction[6 : 0]);
+
+    assign store_addr_comb = rs1_data + imm_s;
 
     assign     rd = instruction[11: 7];
     assign  func3 = instruction[14:12];
@@ -116,7 +121,9 @@ module rv32_core
                 op_load:
                     begin
                         if (!core_hault) begin
-                            if (func3 == 3'b010) begin
+                            if (func3 == 3'b010 || func3 == 3'b001 ||
+                                  func3 == 3'b000 || func3 == 3'b101 ||
+                                  func3 == 3'b100) begin
                                 core_hault      <= 1'b1;
                                 load_store_addr <= rs1_data + imm_i;
                             end else begin
@@ -125,21 +132,113 @@ module rv32_core
                             end
                         end else begin
                             core_hault  <= 1'b0;
-                            regs[rd] <= ram_data_out;
+                            case (func3)
+                                default: begin
+                                    pc         <= pc;
+                                    core_fault <= fault_decode_err;
+                                end
+                                3'b010: begin
+                                    regs[rd] <= ram_data_out;
+                                end
+                                3'b001: begin
+                                    if (load_store_addr[1]) begin
+                                        regs[rd] <= {{16{ram_data_out[31]}}, ram_data_out[31:16]};
+                                    end else begin
+                                        regs[rd] <= {{16{ram_data_out[15]}}, ram_data_out[15:0]};
+                                    end
+                                end
+                                3'b000: begin
+                                    case (load_store_addr[1:0])
+                                        2'b00: begin
+                                            regs[rd] <= {{24{ram_data_out[7]}}, ram_data_out[7:0]};
+                                        end
+                                        2'b01: begin
+                                            regs[rd] <= {{24{ram_data_out[15]}}, ram_data_out[15:8]};
+                                        end
+                                        2'b10: begin
+                                            regs[rd] <= {{24{ram_data_out[23]}}, ram_data_out[23:16]};
+                                        end
+                                        2'b11: begin
+                                            regs[rd] <= {{24{ram_data_out[31]}}, ram_data_out[31:24]};
+                                        end
+                                    endcase
+                                end
+                                3'b101: begin
+                                    if (load_store_addr[1]) begin
+                                        regs[rd] <= {16'd0, ram_data_out[31:16]};
+                                    end else begin
+                                        regs[rd] <= {16'd0, ram_data_out[15:0]};
+                                    end
+                                end
+                                3'b100: begin
+                                    case (load_store_addr[1:0])
+                                        2'b00: begin
+                                            regs[rd] <= {24'd0, ram_data_out[7:0]};
+                                        end
+                                        2'b01: begin
+                                            regs[rd] <= {24'd0, ram_data_out[15:8]};
+                                        end
+                                        2'b10: begin
+                                            regs[rd] <= {24'd0, ram_data_out[23:16]};
+                                        end
+                                        2'b11: begin
+                                            regs[rd] <= {24'd0, ram_data_out[31:24]};
+                                        end
+                                    endcase
+                                end
+                            endcase
                         end
                     end
                 op_store:
                     begin
                         if (!core_hault) begin
-                            if (func3 == 3'b010) begin
-                                core_hault      <= 1'b1;
-                                load_store_addr <= rs1_data + imm_s;
-                                ram_wr_en       <= 1'b1;
-                                ram_data_in     <= rs2_data;
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
+                            core_hault      <= 1'b1;
+                            load_store_addr <= store_addr_comb;
+                            ram_wr_en       <= 1'b1;
+                            case (func3)
+                                3'b010: begin
+                                    ram_wr_strobe <= 4'b1111;
+                                    ram_data_in     <= rs2_data;
+                                end
+                                3'b001: begin
+                                    case (store_addr_comb[1])
+                                        0: begin
+                                            ram_wr_strobe <= 4'b0011;
+                                            ram_data_in     <= rs2_data;
+                                        end
+                                        1: begin
+                                            ram_wr_strobe <= 4'b1100;
+                                            ram_data_in[31:16] <= rs2_data[15:0];
+                                        end
+                                    endcase
+                                end
+                                3'b000: begin
+                                    case (store_addr_comb[1:0])
+                                        2'b00: begin
+                                            ram_wr_strobe <= 4'b0001;
+                                            ram_data_in   <= rs2_data;
+                                        end
+                                        2'b01: begin
+                                            ram_wr_strobe <= 4'b0010;
+                                            ram_data_in[15:8] <= rs2_data[7:0];
+                                        end
+                                        2'b10: begin
+                                            ram_wr_strobe <= 4'b0100;
+                                            ram_data_in[23:16] <= rs2_data[7:0];
+                                        end
+                                        2'b11: begin
+                                            ram_wr_strobe <= 4'b1000;
+                                            ram_data_in[31:24] <= rs2_data[7:0];
+                                        end
+                                    endcase
+                                end
+                                default: begin
+                                    pc         <= pc;
+                                    core_fault <= fault_decode_err;
+                                    core_hault      <= 1'b0;
+                                    ram_wr_en <= 1'b0;
+                                end
+                            endcase
                         end else begin
                             core_hault  <= 1'b0;
                         end
