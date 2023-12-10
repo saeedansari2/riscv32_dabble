@@ -125,6 +125,7 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OPCODE_LUI      0b0110111
 #define OPCODE_AUIPC    0b0010111
 #define OPCODE_JAL      0b1101111
+#define OPCODE_JALR     0b1100111
 #define OPCODE_ARITH    0b0110011
 #define OPCODE_LOAD     0b0000011
 #define OPCODE_STORE    0b0100011
@@ -132,6 +133,8 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OP_LUI(imm, rd) (U_TYPE_IMM(imm) | U_TYPE_RD(rd) | OPCODE_LUI)
 #define OP_AUIPC(imm, rd) (U_TYPE_IMM(imm) | U_TYPE_RD(rd) | OPCODE_AUIPC)
 #define OP_JAL(imm, rd) (J_TYPE_IMM(imm) | J_TYPE_RD(rd) | OPCODE_JAL)
+#define OP_JALR(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b000) | I_TYPE_RD(rd) | OPCODE_JALR)
 #define OP_ADD(rs2, rs1, rd) (R_TYPE_FN7(0b0000000) | R_TYPE_RS2(rs2) | \
     R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
 #define OP_LW(imm, rs1, rd) (I_TYPE_IMM(imm) | I_TYPE_RS1(rs1) | \
@@ -589,10 +592,40 @@ static void test_auipc() {
     ut_assert(top->rootp->rv32_core__DOT__pc == pc + 4);
 }
 
+static void test_jalr() {
+    struct registers regs;
+    uint32_t offset;
+    uint32_t pc;
+
+    run_reset();
+    grab_regs(regs);
+
+    regs.r1 = 0x100;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 10;
+    run_op(OP_JALR(offset, 1, 2));
+    regs.r2 = pc + 4;
+    ut_assert(check_regs(regs));
+    ut_assert(top->rootp->rv32_core__DOT__pc == regs.r1 + offset);
+
+    // sign extend
+    regs.r1 = 0x100;
+    pc = top->rootp->rv32_core__DOT__pc;
+    set_regs(regs);
+    offset = 1 << 11;
+    run_op(OP_JALR(offset, 1, 2));
+    offset = 0xfffff800;
+    regs.r2 = pc + 4;
+    ut_assert(check_regs(regs));
+    ut_assert(top->rootp->rv32_core__DOT__pc == regs.r1 + offset);
+}
+
 static void run_sim() {
     test_lui();
     test_auipc();
     test_jal();
+    test_jalr();
     test_add();
     test_load();
     test_store();

@@ -19,6 +19,7 @@ module rv32_core
         op_lui           = 7'b0110111,
         op_auipc         = 7'b0010111,
         op_jal           = 7'b1101111,
+        op_jalr          = 7'b1100111,
         op_load          = 7'b0000011,
         op_arith         = 7'b0110011,
         op_store         = 7'b0100011
@@ -112,7 +113,12 @@ module rv32_core
                 op_jal:
                     begin
                        regs[rd] <= pc + 4;
-                       pc <= pc + imm_j; // TODO: verify if this should take a + 4 byte offset 
+                       pc <= pc + imm_j;
+                    end
+                op_jalr:
+                    begin
+                       regs[rd] <= pc + 4;
+                       pc <= rs1_data + imm_i;
                     end
                 op_arith:
                     begin
