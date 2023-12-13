@@ -72,8 +72,9 @@ module rv32_core
 
 
     typedef enum logic [3:0] {
-        fault_ok         = 4'd0,
-        fault_decode_err = 4'd1
+        fault_ok             = 4'd0,
+        fault_decode_err     = 4'd1,
+        fault_illegal_access = 4'd2
     } core_fault_state;
 
     reg [32-1:0] regs[32];
@@ -83,6 +84,10 @@ module rv32_core
 
     assign rs1_data = (rs1 == 0) ? 32'd0 : regs[rs1];
     assign rs2_data = (rs2 == 0) ? 32'd0 : regs[rs2];
+
+    reg [63:0] rdcycle;
+    reg [63:0] rdtime;
+    reg [63:0] rdinstret;
 
     typedef enum logic [2:0] {
         arith_add   = 3'b000,
@@ -106,11 +111,19 @@ module rv32_core
             prev_inst       <= '0;
             load_store_addr <= '0;
             ram_wr_en       <= 1'b0;
+            rdcycle         <= '0;
+            rdtime          <= '0;
+            rdinstret       <= '0;
             regs            <= '{default: '0};
         end else begin
             pc        <= core_hault ? pc : pc + 32'd4;
             prev_inst <= instruction;
             ram_wr_en <= 1'b0;
+            rdcycle   <= rdcycle + 1'b1;
+            rdtime    <= rdtime + 1'b1;
+            if (!core_hault) begin
+                rdinstret   <= rdinstret + 1'b1;
+            end
             case (opcode)
                 default: begin
                     pc         <= pc;
@@ -330,20 +343,40 @@ module rv32_core
                                 core_fault <= fault_decode_err;
                             end
                         end
-                        // TODO: complete the csr instructions
-                        3'b001: begin
+                        3'b001, 3'b101: begin // csrrw or csrrwi
+                            core_fault <= fault_illegal_access;
+                            pc         <= pc;
                         end
-                        3'b010: begin
-                        end
-                        3'b011: begin
-                        end
-                        3'b100: begin
-                        end
-                        3'b101: begin
-                        end
-                        3'b110: begin
-                        end
-                        3'b111: begin
+                        3'b010, 3'b011, 3'b110, 3'b111: begin // csrrs or csrrc / csrrsi or csrrci
+                            if (rs1 != 0) begin
+                                core_fault <= fault_illegal_access;
+                                pc         <= pc;
+                            end else begin
+                                case (imm_i[11:0])
+                                    default: begin
+                                        core_fault <= fault_illegal_access;
+                                        pc         <= pc;
+                                    end
+                                    12'hc00: begin
+                                        regs[rd]      <= rdcycle[31:0];
+                                    end
+                                    12'hc01: begin
+                                        regs[rd]      <= rdtime[31:0];
+                                    end
+                                    12'hc02: begin
+                                        regs[rd]      <= rdinstret[31:0];
+                                    end
+                                    12'hc80: begin
+                                        regs[rd]      <= rdcycle[63:32];
+                                    end
+                                    12'hc81: begin
+                                        regs[rd]      <= rdtime[63:32];
+                                    end
+                                    12'hc82: begin
+                                        regs[rd]      <= rdinstret[63:32];
+                                    end
+                                endcase
+                            end
                         end
                     endcase
                 end

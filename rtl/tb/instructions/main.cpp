@@ -139,6 +139,8 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OPCODE_B_X      0b1100011
 #define OPCODE_ARITH    0b0110011
 #define OPCODE_ARITH_I  0b0010011
+#define OPCODE_FENCE    0b0001111
+#define OPCODE_ESYS_CSR 0b1110011
 #define OPCODE_LOAD     0b0000011
 #define OPCODE_STORE    0b0100011
 
@@ -213,6 +215,31 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
     I_TYPE_FN3(0b101) | I_TYPE_RD(rd) | OPCODE_ARITH_I | R_TYPE_FN7(0b0000000))
 #define OP_SRAI(imm, rs1, rd) (I_TYPE_IMM((imm) & 0x1f) | I_TYPE_RS1(rs1) | \
     I_TYPE_FN3(0b101) | I_TYPE_RD(rd) | OPCODE_ARITH_I | R_TYPE_FN7(0b0100000))
+#define OP_FENCE(pred, succ) (I_TYPE_IMM((((pred) & 0xf) << 4) | ((succ) & 0xf)) | \
+    I_TYPE_FN3(0b000) | OPCODE_FENCE)
+#define OP_FENCE_I() (I_TYPE_FN3(0b001) | OPCODE_FENCE)
+#define OP_ECALL() (I_TYPE_IMM(0) | OPCODE_ESYS_CSR)
+#define OP_EBREAK() (I_TYPE_IMM(1) | OPCODE_ESYS_CSR)
+#define OP_CSRRW(csr, rs1, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b001) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
+#define OP_CSRRS(csr, rs1, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b010) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
+#define OP_CSRRC(csr, rs1, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(rs1) | \
+    I_TYPE_FN3(0b011) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
+#define OP_CSRRWI(csr, zimm, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(zimm) | \
+    I_TYPE_FN3(0b101) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
+#define OP_CSRRSI(csr, zimm, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(zimm) | \
+    I_TYPE_FN3(0b110) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
+#define OP_CSRRCI(csr, zimm, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(zimm) | \
+    I_TYPE_FN3(0b111) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
+#define OP_NOP() OP_ADDI(0, 0, 0)
+
+#define CSR_RDCYCLE    0xC00
+#define CSR_RDTIME     0xC01
+#define CSR_RDINSTRET  0xC02
+#define CSR_RDCYCLEH   0xC80
+#define CSR_RDTIMEH    0xC81
+#define CSR_RDINSTRETH 0xC82
 
 static void grab_regs(struct registers &regs_val)
 {
@@ -674,6 +701,99 @@ static void test_arith_i() {
     ut_assert(check_regs(regs)); 
 
     fprintf(stderr, FG_GREEN "sra_i tests passed!\n" FG_RESET);
+}
+
+static void test_fence_esys() {
+    struct registers regs;
+
+    run_reset();
+    grab_regs(regs);
+
+    run_op(OP_FENCE(0x0, 0x0));
+    ut_assert(check_regs(regs));
+
+    run_op(OP_FENCE_I());
+    ut_assert(check_regs(regs));
+
+    run_op(OP_ECALL());
+    ut_assert(check_regs(regs));
+
+    run_op(OP_EBREAK());
+    ut_assert(check_regs(regs));
+
+    fprintf(stderr, FG_GREEN "fence_esys tests passed!\n" FG_RESET);
+}
+
+static void test_csr() {
+    struct registers regs;
+
+    uint32_t rdcycle;
+    uint32_t rdtime;
+    uint32_t rdinstret;
+
+    run_reset();
+
+    run_op(OP_NOP());
+
+    run_op(OP_CSRRC(CSR_RDCYCLE, 0, 2));
+    grab_regs(regs);
+    rdcycle = regs.r2;
+    ut_assert(rdcycle != 0);
+
+    run_op(OP_CSRRC(CSR_RDCYCLE, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2 > rdcycle);
+    rdcycle = regs.r2;
+
+    run_op(OP_CSRRS(CSR_RDCYCLE, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2 > rdcycle);
+    rdcycle = regs.r2;
+
+    run_op(OP_CSRRCI(CSR_RDCYCLE, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2 > rdcycle);
+    rdcycle = regs.r2;
+
+    run_op(OP_CSRRSI(CSR_RDCYCLE, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2 > rdcycle);
+
+    run_op(OP_CSRRSI(CSR_RDCYCLEH, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2  == 0);
+
+    fprintf(stderr, FG_GREEN "crs ops + RDCYCLE tests passed!\n" FG_RESET);
+
+    run_op(OP_CSRRC(CSR_RDTIME, 0, 2));
+    grab_regs(regs);
+    rdtime = regs.r2;
+    ut_assert(rdtime != 0);
+
+    run_op(OP_CSRRC(CSR_RDTIME, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2 > rdtime);
+
+    run_op(OP_CSRRSI(CSR_RDTIMEH, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2  == 0);
+
+    fprintf(stderr, FG_GREEN "RDTIME tests passed!\n" FG_RESET);
+
+    run_op(OP_CSRRC(CSR_RDINSTRET, 0, 2));
+    grab_regs(regs);
+    rdinstret = regs.r2;
+    ut_assert(rdinstret != 0);
+
+    run_op(OP_CSRRC(CSR_RDINSTRET, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2 > rdinstret);
+
+    run_op(OP_CSRRSI(CSR_RDINSTRETH, 0, 2));
+    grab_regs(regs);
+    ut_assert(regs.r2  == 0);
+
+    fprintf(stderr, FG_GREEN "RDINSTRET tests passed!\n" FG_RESET);
 }
 
 static void test_load() {
@@ -1186,6 +1306,8 @@ static void run_sim() {
     test_bxx();
     test_arith();
     test_arith_i();
+    test_fence_esys();
+    test_csr();
     test_load();
     test_store();
 }
