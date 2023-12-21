@@ -1,48 +1,67 @@
+`default_nettype none
+
 module ram
-    # (
-        parameter ADDR_WIDTH = 16,
-        parameter DATA_WIDTH = 32
+    #(
+        parameter WIDTH       = 32, 
+        parameter ADDR_WIDTH  = 8
     )
     (
-        input  wire                    clk,
-        // port A
-        input  wire                    a_wr_en,
-        input  wire [DATA_WIDTH/8-1:0] a_wr_strobe,
-        input  wire [ADDR_WIDTH-1:0]   a_addr,
-        input  wire [DATA_WIDTH-1:0]   a_data_in,
-        output wire [DATA_WIDTH-1:0]   a_data_out,
-        // port B
-        input  wire                    b_wr_en,
-        input  wire [DATA_WIDTH/8-1:0] b_wr_strobe,
-        input  wire [ADDR_WIDTH-1:0]   b_addr,
-        input  wire [DATA_WIDTH-1:0]   b_data_in,
-        output wire [DATA_WIDTH-1:0]   b_data_out
+        input  wire                      clk       ,  // Port-A: Clock
+
+        input  wire                      a_wr_en   ,  // Port-A: Write Enable
+        input  wire  [ADDR_WIDTH-1:0]    a_addr    ,  // Port-A: Address
+        input  wire  [WIDTH-1:0]         a_data_in ,  // Port-A: Input data
+        output logic [WIDTH-1:0]         a_data_out,  // Port-A: Output data
+
+        input  wire                      b_wr_en   ,  // Port-B: Write Enable
+        input  wire  [ADDR_WIDTH-1:0]    b_addr    ,  // Port-B: Address
+        input  wire  [WIDTH-1:0]         b_data_in ,  // Port-B: Input data
+        output logic [WIDTH-1:0]         b_data_out   // Port-B: Output data
     );
 
-    wire [DATA_WIDTH-1:0] a_wr_mask;
-    wire [DATA_WIDTH-1:0] b_wr_mask;
+    localparam DEPTH = 2 ** ADDR_WIDTH;
 
-    genvar i;
+    /* ram_style:
+        block      : Instructs the tool to infer RAMB-type components.
+        distributed: Instructs the tool to infer the LUT RAMs.
+        registers  : Instructs the tool to infer registers instead of RAMs.
+        ultra      : Instructs the tool to use the AMD UltraScale+™ URAM primitives.
+        mixed      : Instructs the tool to infer a combination of RAM types designed to minimize the amount of space that is unused.
+    */
+    (* ram_style = "block" *)
+    reg [WIDTH-1:0] mem [DEPTH-1:0];
+
+    // Memory initialization 
     generate
-        for (i = 0; i < DATA_WIDTH / 8; i = i + 1) begin
-            assign a_wr_mask[i*8+7:i*8] = a_wr_strobe[i] ? 8'hff : 8'h00;
-            assign b_wr_mask[i*8+7:i*8] = b_wr_strobe[i] ? 8'hff : 8'h00;
-        end
+        integer ram_index;
+        initial
+        for (ram_index = 0; ram_index < DEPTH; ram_index = ram_index + 1)
+            mem[ram_index] = {(WIDTH){1'b0}};
     endgenerate
 
-    reg [DATA_WIDTH-1:0] mem[1<<ADDR_WIDTH];
+    logic  [WIDTH-1:0]         a_rdata_r;
+    logic  [WIDTH-1:0]         b_rdata_r;
 
-    assign a_data_out = mem[a_addr];
-    assign b_data_out = mem[b_addr];
-
-    always_ff @(posedge(clk)) begin
-        if (b_wr_en) begin
-            mem[b_addr] <= (b_data_in & b_wr_mask) | (mem[b_addr] & ~b_wr_mask);
-        end
-        // Port A take priority in case same address is used for both ports
+    // Port-A:
+    always @(posedge(clk)) begin
         if (a_wr_en) begin
-            mem[a_addr] <= (a_data_in & a_wr_mask) | (mem[a_addr] & ~a_wr_mask);
+            mem[a_addr] <= a_data_in;
+        end else begin
+            a_rdata_r   <= mem[a_addr];
         end
     end
+    assign a_data_out = a_rdata_r;
 
-endmodule
+    // Port-B:
+    always @(posedge(clk)) begin
+        if (b_wr_en) begin
+            mem[b_addr] <= b_data_in;
+        end else begin
+            b_rdata_r   <= mem[b_addr];
+        end
+    end
+    assign b_data_out = b_rdata_r;
+
+endmodule  // ram
+
+`default_nettype wire
