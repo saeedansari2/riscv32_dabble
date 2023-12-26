@@ -46,21 +46,28 @@ module ram
     always @(posedge(clk)) begin
         if (a_wr_en) begin
             mem[a_addr] <= a_data_in;
+            a_rdata_r   <= a_data_in;
         end else begin
             a_rdata_r   <= mem[a_addr];
         end
     end
-    assign a_data_out = a_rdata_r;
+    // assign a_data_out = a_rdata_r;
 
     // Port-B:
     always @(posedge(clk)) begin
         if (b_wr_en) begin
             mem[b_addr] <= b_data_in;
+            b_rdata_r   <= b_data_in;
         end else begin
             b_rdata_r   <= mem[b_addr];
         end
     end
-    assign b_data_out = b_rdata_r;
+    // assign b_data_out = b_rdata_r;
+
+    always @(posedge(clk)) begin
+        a_data_out <= a_rdata_r;
+        b_data_out <= b_rdata_r;
+    end
 
 endmodule  // ram
 
