@@ -87,6 +87,14 @@ module rv32_core
     assign rs1_data = (rs1 == 0) ? 32'd0 : regs[rs1];
     assign rs2_data = (rs2 == 0) ? 32'd0 : regs[rs2];
 
+    wire [64-1:0]   mul_res_uu;
+    wire signed [64-1:0]   mul_res_su;
+    wire signed [64-1:0]   mul_res_ss;
+
+    assign mul_res_uu  = $unsigned(rs1_data) * $unsigned(rs2_data);
+    assign mul_res_su  = $signed(rs1_data)   * $unsigned(rs2_data);
+    assign mul_res_ss  = $signed(rs1_data)   * $signed(rs2_data);
+
     reg [63:0] rdcycle;
     reg [63:0] rdtime;
     reg [63:0] rdinstret;
@@ -101,6 +109,17 @@ module rv32_core
         arith_or    = 3'b110,
         arith_and   = 3'b111
     } arith_val;
+
+    typedef enum logic [2:0] {
+        arith_mul     = 3'b000,
+        arith_mulh    = 3'b001,
+        arith_mulhsu  = 3'b010,
+        arith_mulhu   = 3'b011,
+        arith_div     = 3'b100,
+        arith_divu    = 3'b101,
+        arith_rem     = 3'b110,
+        arith_remu    = 3'b111
+    } arith_val_m;
 
     always_ff @(posedge(clk)) begin
         if (!reset_n) begin
@@ -243,86 +262,128 @@ module rv32_core
                     endcase
                 end
                 op_arith: begin
-                    case (func3)
+                    case (func7)
                         default: begin
-                            pc         <= pc;
-                            core_fault <= fault_decode_err;
-                        end
-                        arith_add: begin
-                            if (func7==7'b0000000) begin
-                                regs[rd]   <= rs1_data + rs2_data;
-                            end else if (func7==7'b0100000) begin
-                                regs[rd]   <= rs1_data - rs2_data;
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
-                        end
-                        arith_sll: begin
-                            if (func7==7'b0000000) begin
-                                regs[rd]   <= rs1_data << rs2_data[4:0];
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
-                        end
-                        arith_slt: begin
-                            if (func7==7'b0000000) begin
-                                if ($signed(rs1_data) < $signed(rs2_data)) begin
-                                    regs[rd]   <= 32'd1;
-                                end else begin
-                                    regs[rd]   <= 32'd0;
+                            case (func3)
+                                default: begin
+                                    pc         <= pc;
+                                    core_fault <= fault_decode_err;
                                 end
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
-                        end
-                        arith_sltu: begin
-                            if (func7==7'b0000000) begin
-                                if ($unsigned(rs1_data) < $unsigned(rs2_data)) begin
-                                    regs[rd]   <= 32'd1;
-                                end else begin
-                                    regs[rd]   <= 32'd0;
+                                arith_add: begin
+                                    if (func7==7'b0000000) begin
+                                        regs[rd]   <= rs1_data + rs2_data;
+                                    end else if (func7==7'b0100000) begin
+                                        regs[rd]   <= rs1_data - rs2_data;
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
                                 end
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
+                                arith_sll: begin
+                                    if (func7==7'b0000000) begin
+                                        regs[rd]   <= rs1_data << rs2_data[4:0];
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                                arith_slt: begin
+                                    if (func7==7'b0000000) begin
+                                        if ($signed(rs1_data) < $signed(rs2_data)) begin
+                                            regs[rd]   <= 32'd1;
+                                        end else begin
+                                            regs[rd]   <= 32'd0;
+                                        end
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                                arith_sltu: begin
+                                    if (func7==7'b0000000) begin
+                                        if ($unsigned(rs1_data) < $unsigned(rs2_data)) begin
+                                            regs[rd]   <= 32'd1;
+                                        end else begin
+                                            regs[rd]   <= 32'd0;
+                                        end
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                                arith_xor: begin
+                                    if (func7==7'b0000000) begin
+                                        regs[rd]   <= rs1_data ^ rs2_data;
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                                arith_sr: begin
+                                    if (func7==7'b0000000) begin
+                                        regs[rd]   <= rs1_data >> rs2_data[4:0];
+                                    end else if (func7==7'b0100000) begin
+                                        regs[rd]   <= $signed(rs1_data) >>> rs2_data[4:0];
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                                arith_or: begin
+                                    if (func7==7'b0000000) begin
+                                        regs[rd]   <= rs1_data | rs2_data;
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                                arith_and: begin
+                                    if (func7==7'b0000000) begin
+                                        regs[rd]   <= rs1_data & rs2_data;
+                                    end else begin
+                                        pc         <= pc;
+                                        core_fault <= fault_decode_err;
+                                    end
+                                end
+                            endcase
                         end
-                        arith_xor: begin
-                            if (func7==7'b0000000) begin
-                                regs[rd]   <= rs1_data ^ rs2_data;
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
-                        end
-                        arith_sr: begin
-                            if (func7==7'b0000000) begin
-                                regs[rd]   <= rs1_data >> rs2_data[4:0];
-                            end else if (func7==7'b0100000) begin
-                                regs[rd]   <= $signed(rs1_data) >>> rs2_data[4:0];
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
-                        end
-                        arith_or: begin
-                            if (func7==7'b0000000) begin
-                                regs[rd]   <= rs1_data | rs2_data;
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
-                        end
-                        arith_and: begin
-                            if (func7==7'b0000000) begin
-                                regs[rd]   <= rs1_data & rs2_data;
-                            end else begin
-                                pc         <= pc;
-                                core_fault <= fault_decode_err;
-                            end
+                        7'b0000001: begin
+                            case (func3)
+                                default: begin
+                                    pc         <= pc;
+                                    core_fault <= fault_decode_err;
+                                end
+                                arith_mul: begin
+                                    regs[rd]   <= mul_res_uu[32-1:0];
+                                end
+                                arith_mulh: begin
+                                    regs[rd]   <= mul_res_ss[64-1:32] | (mul_res_ss[32-1:0] & 32'd0);
+                                end
+                                arith_mulhsu: begin
+                                    regs[rd]   <= mul_res_su[64-1:32] | (mul_res_su[32-1:0] & 32'd0);
+                                end
+                                arith_mulhu: begin
+                                    regs[rd]   <= mul_res_uu[64-1:32];
+                                end
+                                /*
+                                * The Division and Remainder are slow and big, p.s. they are as widely used as
+                                * some other operations. Hence, we do not implement them here to keep our core
+                                * as small as possible while still functional.
+                                * They can be simply added to the next few lines if one wants to support them.
+                                */
+                                arith_div: begin
+                                    regs[rd]   <= '0;
+                                end
+                                arith_divu: begin
+                                    regs[rd]   <= '0;
+                                end
+                                arith_rem: begin
+                                    regs[rd]   <= '0;
+                                end
+                                arith_remu: begin
+                                    regs[rd]   <= '0;
+                                end
+                            endcase
                         end
                     endcase
                 end

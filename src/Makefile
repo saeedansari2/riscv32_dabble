@@ -1,5 +1,5 @@
 CXX_FLAGS = -O3
-ARCH_FLAGS = --target=riscv32-none-eabi -march=rv32i 
+ARCH_FLAGS = --target=riscv32-none-eabi -march=rv32im
 # ARCH_FLAGS = --with-arch=rv32i 
 
 all: build/test.dhex

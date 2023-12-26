@@ -233,6 +233,23 @@ static void _ut_assert(bool eq, const char *expr, const char *file, int lineno) 
 #define OP_CSRRCI(csr, zimm, rd) (I_TYPE_IMM(csr) | I_TYPE_RS1(zimm) | \
     I_TYPE_FN3(0b111) | I_TYPE_RD(rd) | OPCODE_ESYS_CSR)
 #define OP_NOP() OP_ADDI(0, 0, 0)
+#define OP_MUL(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b000) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_MULH(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b001) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_MULHSU(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b010) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_MULHU(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b011) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_DIV(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b100) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_DIVU(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b101) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_REM(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b110) | R_TYPE_RD(rd) | OPCODE_ARITH)
+#define OP_REMU(rs2, rs1, rd) (R_TYPE_FN7(0b0000001) | R_TYPE_RS2(rs2) | \
+    R_TYPE_RS1(rs1) | R_TYPE_FN3(0b111) | R_TYPE_RD(rd) | OPCODE_ARITH)
+
 
 #define CSR_RDCYCLE    0xC00
 #define CSR_RDTIME     0xC01
@@ -561,6 +578,77 @@ static void test_arith() {
     ut_assert(check_regs(regs)); 
 
     fprintf(stderr, FG_GREEN "and tests passed!\n" FG_RESET);
+
+    regs.r1 = 0x70000000;
+    set_regs(regs);
+    run_op(OP_MUL(0, 1, 2));
+    regs.r2 = 0x00000000;
+    ut_assert(check_regs(regs));
+
+    regs.r2 = 0x70000002;
+    regs.r3 = 0x70000005;
+    set_regs(regs);
+    run_op(OP_MUL(2, 3, 4));
+    regs.r4 = 0x1000000a;
+    ut_assert(check_regs(regs));
+
+    regs.r2 = 0x70000002;
+    regs.r3 = 0x70000005;
+    set_regs(regs);
+    run_op(OP_MULHU(2, 3, 4));
+    regs.r4 = 0x31000003;
+    ut_assert(check_regs(regs));
+
+    regs.r2 = 0xc0000000;
+    regs.r3 = 0xe0000000;
+    set_regs(regs);
+    run_op(OP_MULHU(2, 3, 4));
+    regs.r4 = 0xa8000000;
+    ut_assert(check_regs(regs));
+
+    regs.r2 = 0xc0000002;
+    regs.r3 = 0xe0000005;
+    set_regs(regs);
+    run_op(OP_MULH(2, 3, 4));
+    regs.r4 = 0x07fffffe;
+    ut_assert(check_regs(regs));
+
+    regs.r2 = 0xc0000000;
+    regs.r3 = 0xe0000000;
+    set_regs(regs);
+    run_op(OP_MULH(2, 3, 4));
+    regs.r4 = 0x08000000;
+    ut_assert(check_regs(regs));
+
+    regs.r6 = 0x50000000;
+    regs.r7 = 0x70000000;
+    set_regs(regs);
+    run_op(OP_MULHSU(7, 6, 8));
+    regs.r8 = 0x23000000;
+    ut_assert(check_regs(regs));
+
+    regs.r6 = 0x50000000;
+    regs.r7 = 0x90000000;
+    set_regs(regs);
+    run_op(OP_MULHSU(7, 6, 8));
+    regs.r8 = 0x2d000000;
+    ut_assert(check_regs(regs));
+
+    regs.r6 = 0xf0000000;
+    regs.r7 = 0xf0000000;
+    set_regs(regs);
+    run_op(OP_MULHSU(7, 6, 8));
+    regs.r8 = 0xe1000000;
+    ut_assert(check_regs(regs));
+
+    // regs.r6 = 0xc0000000;
+    // regs.r7 = 0x80000000;
+    // set_regs(regs);
+    // run_op(OP_MULHSU(7, 6, 8));
+    // regs.r8 = 0x20000000;
+    // ut_assert(check_regs(regs));
+
+    fprintf(stderr, FG_GREEN "mul tests passed!\n" FG_RESET);
 }
 
 static void test_arith_i() {
@@ -1328,7 +1416,7 @@ int main(int argc, const char **argv) {
         delete tfp;
         delete top;
         delete ctx;
-        printf(FG_GREEN "Simulation Successfull!\n" FG_RESET);
+        printf(FG_GREEN "--------------\nSimulation Successfull!\n" FG_RESET);
     } catch (system_error &err) {
         fprintf(stderr, FG_RED "%s\n" FG_RESET, err.what());
         tfp->close();

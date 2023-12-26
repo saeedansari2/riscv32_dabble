@@ -8,6 +8,6 @@ extern "C" void _start(void)
 {
     while (true)
     {
-        *y = *a + *b;
+        *y = *a * *b;
     }
 }
