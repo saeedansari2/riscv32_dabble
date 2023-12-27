@@ -1,3 +1,5 @@
+`default_nettype none
+
 module rv32_core
     # (
         parameter ADDR_WIDTH = 16,
