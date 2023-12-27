@@ -51,7 +51,6 @@ module ram
             a_rdata_r   <= mem[a_addr];
         end
     end
-    // assign a_data_out = a_rdata_r;
 
     // Port-B:
     always @(posedge(clk)) begin
@@ -62,7 +61,6 @@ module ram
             b_rdata_r   <= mem[b_addr];
         end
     end
-    // assign b_data_out = b_rdata_r;
 
     always @(posedge(clk)) begin
         a_data_out <= a_rdata_r;
